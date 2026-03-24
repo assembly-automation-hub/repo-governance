@@ -1,4 +1,18 @@
-# yml_helper
+<div align="center">
+
+<pre>
+                                                                                           
+                               ,,        ,,                 ,,                             
+                             `7MM      `7MM               `7MM                             
+                               MM        MM                 MM                             
+`7M'   `MF'`7MMpMMMb.pMMMb.    MM        MMpMMMb.  .gP"Ya   MM `7MMpdMAo.  .gP"Ya `7Mb,od8 
+  VA   ,V    MM    MM    MM    MM        MM    MM ,M'   Yb  MM   MM   `Wb ,M'   Yb  MM' "' 
+   VA ,V     MM    MM    MM    MM        MM    MM 8M""""""  MM   MM    M8 8M""""""  MM     
+    VVV      MM    MM    MM    MM        MM    MM YM.    ,  MM   MM   ,AP YM.    ,  MM     
+    ,V     .JMML  JMML  JMML..JMML.    .JMML  JMML.`Mbmmd'.JMML. MMbmmd'   `Mbmmd'.JMML.   
+   ,V                                                            MM                        
+OOb"                                                           .JMML.                      
+</pre>
 
 A repository-automation and delivery blueprint for a logging library, consolidating GitHub Actions, dependency governance, security scanning, issue intake, and maintainer funding metadata in one place.
 
@@ -7,6 +21,8 @@ A repository-automation and delivery blueprint for a logging library, consolidat
 [![Security: CodeQL](https://img.shields.io/badge/Security-CodeQL-2ea44f?style=for-the-badge&logo=github)](#deployment)
 [![Dependabot](https://img.shields.io/badge/Dependencies-Dependabot-025e8c?style=for-the-badge&logo=dependabot)](#configuration)
 [![YAML First](https://img.shields.io/badge/Config-YAML-informational?style=for-the-badge)](#tech-stack--architecture)
+
+</div>
 
 > [!IMPORTANT]
 > This repository currently contains project governance, CI/CD, security, and issue-management YAML for a logging-library codebase. The library implementation files themselves are not present in this checkout, so this README documents the operational layer that supports the library lifecycle.
