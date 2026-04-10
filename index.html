@@ -28,12 +28,16 @@
   .header-container a:hover {
     text-decoration: underline;
   }
-  input, button {
+  input, textarea, button {
     padding: 10px;
     font-size: 14px;
     width: 100%;
     max-width: 400px;
     box-sizing: border-box;
+    font-family: inherit;
+  }
+  textarea {
+    resize: vertical;
   }
   #log {
     margin-top: 10px;
@@ -45,6 +49,20 @@
     width: 100%;
     max-width: 400px;
     box-sizing: border-box;
+    text-align: left;
+    font-size: 13px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .log-entry {
+    margin-bottom: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ddd;
+  }
+  .log-entry:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
   }
   .instructions {
     margin-top: 30px;
@@ -71,54 +89,60 @@
 </div>
 
 <input type="text" id="token" placeholder="GitHub Token (PAT)">
-<input type="text" id="repo" placeholder="Format: owner/repository (Target)">
-<button id="uploadBtn">Upload and Create PR</button>
+<textarea id="repos" rows="5" placeholder="Target repositories, one per line&#10;Format: owner/repo1&#10;owner/repo2"></textarea>
+<button id="uploadBtn">Upload and Create PRs</button>
 <div id="log">Waiting for actions...</div>
 
 <div class="instructions">
   <h2>Instructions</h2>
   <p><strong>What it is:</strong></p>
-  <p>This utility allows you to fetch standard repository governance files from a centralized source and automatically deploy them to your target repository via a Pull Request.</p>
+  <p>This utility allows you to fetch standard repository governance files from a centralized source and automatically deploy them to your target repositories via Pull Requests.</p>
   
   <p><strong>How it works:</strong></p>
   <ul>
     <li>The script connects directly to the GitHub REST API from your browser.</li>
     <li>It reads the contents of the <code>.github</code> and <code>trigger action</code> directories from the main branch of the source repository.</li>
-    <li>It replicates the file structure in your target repository.</li>
-    <li>It generates a new commit with the fetched files, creates a new branch, and opens a Pull Request with predefined descriptions and formatting.</li>
+    <li>It replicates the file structure in all specified target repositories.</li>
+    <li>It generates a new commit with the fetched files, creates a new branch, and opens a Pull Request for each repository.</li>
   </ul>
   
   <p><strong>Nuances and Requirements:</strong></p>
   <ul>
-    <li><strong>Token Scope:</strong> The GitHub Personal Access Token (PAT) must have the <code>repo</code> scope to read the source and write to the target repository.</li>
-    <li><strong>Local Storage:</strong> Your token and target repository name are cached in your browser's local storage for convenience. Clear your browser data to remove them.</li>
+    <li><strong>Token Scope:</strong> The GitHub Personal Access Token (PAT) must have the <code>repo</code> scope to read the source and write to the target repositories.</li>
+    <li><strong>Local Storage:</strong> Your token and target repositories list are cached in your browser's local storage for convenience.</li>
     <li><strong>Client-Side Execution:</strong> All operations are performed directly between your browser and the GitHub API. No intermediate servers are involved.</li>
-    <li><strong>Target Repository State:</strong> The target repository must not be completely empty; it requires an initialized default branch to branch off from.</li>
+    <li><strong>Target Repository State:</strong> The target repositories must not be completely empty; they require an initialized default branch to branch off from.</li>
   </ul>
 </div>
 
 <script>
 const tokenInput = document.getElementById('token');
-const repoInput = document.getElementById('repo');
+const reposInput = document.getElementById('repos');
 
 tokenInput.value = localStorage.getItem('github_token') || '';
-repoInput.value = localStorage.getItem('github_repo') || '';
+reposInput.value = localStorage.getItem('github_repos') || '';
 
 document.getElementById('uploadBtn').addEventListener('click', async () => {
   const token = tokenInput.value.trim();
-  const targetRepo = repoInput.value.trim();
+  const reposText = reposInput.value.trim();
   const logEl = document.getElementById('log');
   const sourceRepo = "assembly-automation-hub/repo-governance";
 
   localStorage.setItem('github_token', token);
-  localStorage.setItem('github_repo', targetRepo);
+  localStorage.setItem('github_repos', reposText);
 
-  if (!token || !targetRepo) {
+  if (!token || !reposText) {
     logEl.innerText = "Error: Fill in all fields.";
     return;
   }
 
-  logEl.innerText = "Reading source repository and contacting GitHub API...";
+  const targetRepos = reposText.split('\n').map(r => r.trim()).filter(r => r.length > 0);
+  
+  logEl.innerHTML = "";
+  const log = (msg) => {
+    logEl.innerHTML += `<div class="log-entry">${msg}</div>`;
+    logEl.scrollTop = logEl.scrollHeight;
+  };
 
   const headers = {
     "Authorization": `token ${token}`,
@@ -126,114 +150,134 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
     "Content-Type": "application/json"
   };
 
-  const targetBaseUrl = `https://api.github.com/repos/${targetRepo}`;
   const sourceBaseUrl = `https://api.github.com/repos/${sourceRepo}`;
+  let sourceTreeData;
 
   try {
-    const repoDataRes = await fetch(targetBaseUrl, { headers });
-    if (!repoDataRes.ok) throw new Error("Failed to access target repository. Check token and format.");
-    const repoData = await repoDataRes.json();
-    const defaultBranch = repoData.default_branch;
-
-    const branchRes = await fetch(`${targetBaseUrl}/git/ref/heads/${defaultBranch}`, { headers });
-    const branchData = await branchRes.json();
-    const baseSha = branchData.object.sha;
-
-    const commitRes = await fetch(`${targetBaseUrl}/git/commits/${baseSha}`, { headers });
-    const commitData = await commitRes.json();
-    const baseTreeSha = commitData.tree.sha;
-
-    logEl.innerText = "Fetching file list from source repository...";
+    log("<b>Step 1: Fetching source repository structure...</b>");
     const sourceTreeRes = await fetch(`${sourceBaseUrl}/git/trees/main?recursive=1`, { headers });
     if (!sourceTreeRes.ok) throw new Error("Failed to read source repository.");
-    const sourceTreeData = await sourceTreeRes.json();
+    sourceTreeData = await sourceTreeRes.json();
+  } catch (error) {
+    log(`<span style="color:red">Error: ${error.message}</span>`);
+    return;
+  }
 
-    const filesToCopy = sourceTreeData.tree.filter(item => 
-      item.type === 'blob' && (item.path.startsWith('.github/') || item.path.startsWith('trigger action/'))
-    );
+  const filesToCopy = sourceTreeData.tree.filter(item => 
+    item.type === 'blob' && (item.path.startsWith('.github/') || item.path.startsWith('trigger action/'))
+  );
 
-    if (filesToCopy.length === 0) {
-      throw new Error("No files found in the specified source folders.");
-    }
+  if (filesToCopy.length === 0) {
+    log("<span style="color:red">Error: No files found in the specified source folders.</span>");
+    return;
+  }
 
-    const treeDataList = [];
-
+  log("<b>Step 2: Downloading source files into memory...</b>");
+  const filesWithContent = [];
+  try {
     for (const file of filesToCopy) {
-      logEl.innerText = `Copying file: ${file.path}`;
-      
       const sourceBlobRes = await fetch(`${sourceBaseUrl}/git/blobs/${file.sha}`, { headers });
+      if (!sourceBlobRes.ok) throw new Error(`Failed to fetch blob for ${file.path}`);
       const sourceBlobData = await sourceBlobRes.json();
-
-      const targetBlobRes = await fetch(`${targetBaseUrl}/git/blobs`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ content: sourceBlobData.content, encoding: sourceBlobData.encoding })
-      });
-      const targetBlobData = await targetBlobRes.json();
-
-      treeDataList.push({
+      filesWithContent.push({
         path: file.path,
         mode: file.mode,
         type: file.type,
-        sha: targetBlobData.sha
+        content: sourceBlobData.content,
+        encoding: sourceBlobData.encoding
       });
     }
-
-    logEl.innerText = "Creating structure (Tree)...";
-    const treeRes = await fetch(`${targetBaseUrl}/git/trees`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ base_tree: baseTreeSha, tree: treeDataList })
-    });
-    const newTreeData = await treeRes.json();
-
-    logEl.innerText = "Creating commit...";
-    const prBodyText = `This pull request introduces necessary configuration files for repository management.
-
-* **Chores**
-  * Configured automated dependency monitoring with weekly checks and auto-merge for minor/patch updates.
-  * Added security scanning workflows using CodeQL and OpenSSF Scorecard for continuous code analysis.
-  * Enabled automated code quality and linting checks on pull requests.
-  * Introduced standardized templates for bug reports and feature requests to improve contribution workflow.
-  * Added GitHub funding links and configured label synchronization for improved repository management.`;
-
-    const newCommitRes = await fetch(`${targetBaseUrl}/git/commits`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        message: prBodyText,
-        tree: newTreeData.sha,
-        parents: [baseSha]
-      })
-    });
-    const newCommitData = await newCommitRes.json();
-
-    logEl.innerText = "Creating new branch...";
-    const newBranchName = `refs/heads/upload-repo-governance-${Date.now()}`;
-    await fetch(`${targetBaseUrl}/git/refs`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ ref: newBranchName, sha: newCommitData.sha })
-    });
-
-    logEl.innerText = "Creating Pull Request...";
-    const prRes = await fetch(`${targetBaseUrl}/pulls`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        title: "Import YAML helpers for repository governance",
-        head: newBranchName,
-        base: defaultBranch,
-        body: prBodyText
-      })
-    });
-    const prData = await prRes.json();
-
-    logEl.innerHTML = `Success! PR Link: <a href="${prData.html_url}" target="_blank">${prData.html_url}</a>`;
-
   } catch (error) {
-    logEl.innerText = `Error: ${error.message}`;
+    log(`<span style="color:red">Error downloading source files: ${error.message}</span>`);
+    return;
   }
+
+  log(`<b>Step 3: Processing ${targetRepos.length} target repositor${targetRepos.length > 1 ? 'ies' : 'y'}...</b>`);
+
+  const prBodyText = `This pull request introduces necessary configuration files for repository management.\n\n* **Chores**\n  * Configured automated dependency monitoring with weekly checks and auto-merge for minor/patch updates.\n  * Added security scanning workflows using CodeQL and OpenSSF Scorecard for continuous code analysis.\n  * Enabled automated code quality and linting checks on pull requests.\n  * Introduced standardized templates for bug reports and feature requests to improve contribution workflow.\n  * Added GitHub funding links and configured label synchronization for improved repository management.`;
+
+  for (const targetRepo of targetRepos) {
+    log(`<i>Starting work on: ${targetRepo}</i>`);
+    const targetBaseUrl = `https://api.github.com/repos/${targetRepo}`;
+
+    try {
+      const repoDataRes = await fetch(targetBaseUrl, { headers });
+      if (!repoDataRes.ok) throw new Error("Repository not found or access denied.");
+      const repoData = await repoDataRes.json();
+      const defaultBranch = repoData.default_branch;
+
+      const branchRes = await fetch(`${targetBaseUrl}/git/ref/heads/${defaultBranch}`, { headers });
+      const branchData = await branchRes.json();
+      const baseSha = branchData.object.sha;
+
+      const commitRes = await fetch(`${targetBaseUrl}/git/commits/${baseSha}`, { headers });
+      const commitData = await commitRes.json();
+      const baseTreeSha = commitData.tree.sha;
+
+      const treeDataList = [];
+
+      for (const file of filesWithContent) {
+        const targetBlobRes = await fetch(`${targetBaseUrl}/git/blobs`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ content: file.content, encoding: file.encoding })
+        });
+        if (!targetBlobRes.ok) throw new Error(`Failed to upload blob for ${file.path}`);
+        const targetBlobData = await targetBlobRes.json();
+
+        treeDataList.push({
+          path: file.path,
+          mode: file.mode,
+          type: file.type,
+          sha: targetBlobData.sha
+        });
+      }
+
+      const treeRes = await fetch(`${targetBaseUrl}/git/trees`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ base_tree: baseTreeSha, tree: treeDataList })
+      });
+      const newTreeData = await treeRes.json();
+
+      const newCommitRes = await fetch(`${targetBaseUrl}/git/commits`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message: prBodyText,
+          tree: newTreeData.sha,
+          parents: [baseSha]
+        })
+      });
+      const newCommitData = await newCommitRes.json();
+
+      const newBranchName = `refs/heads/upload-repo-governance-${Date.now()}`;
+      await fetch(`${targetBaseUrl}/git/refs`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ref: newBranchName, sha: newCommitData.sha })
+      });
+
+      const prRes = await fetch(`${targetBaseUrl}/pulls`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: "Import YAML helpers for repository governance",
+          head: newBranchName,
+          base: defaultBranch,
+          body: prBodyText
+        })
+      });
+      const prData = await prRes.json();
+
+      log(`<span style="color:green">✔ Success for ${targetRepo}! PR Link: <a href="${prData.html_url}" target="_blank">${prData.number}</a></span>`);
+
+    } catch (error) {
+      log(`<span style="color:red">✖ Error for ${targetRepo}: ${error.message}</span>`);
+    }
+  }
+  
+  log("<b>All operations completed.</b>");
 });
 </script>
 </body>
