@@ -1,4 +1,5 @@
 """Create GitHub issues and PR comments from AI-generated change analysis.
+https://github.com/assembly-automation-hub/repo-governance
 
 This module runs inside GitHub Actions and inspects either push or pull request
 events. It gathers the relevant diff, sends the change summary to a hosted model,
@@ -256,28 +257,50 @@ The issue_title, issue_body and summary MUST be written entirely in English.
 """
 
 # ---------------------------------------------------------------------------
+# Severity guidance shared across all prompt roles.
+# Provides the model with concrete criteria for each severity level so it
+# does not default everything to LOW.
+# ---------------------------------------------------------------------------
+severity_guide = """
+Use the following severity criteria based on the ACTUAL impact of the changes:
+
+CRITICAL — Security vulnerabilities, data loss risks, broken authentication, exposed secrets, or production-breaking changes.
+HIGH — Significant logic changes, new API endpoints, permission/access control modifications, changes to core business logic, database schema changes, or removal of important functionality.
+MEDIUM — New features, meaningful refactors that change behavior, configuration changes that affect runtime, dependency updates, workflow changes, new files that add functionality, or structural changes across multiple files.
+LOW — Documentation-only updates (README, comments, typos), cosmetic changes, formatting, adding badges, or renaming without behavior change.
+
+Do NOT default to LOW. Evaluate the actual scope and impact of every change. Most code changes that add or modify functionality should be MEDIUM or higher.
+"""
+
+# ---------------------------------------------------------------------------
 # Prompt routing — select the model persona based on trigger_labels extracted
 # from the commit message or applied PR labels. Falls back to a generic
-# documentation-summary prompt when no recognised label is present.
+# analysis prompt when no recognised label is present.
 # ---------------------------------------------------------------------------
 if any(l in trigger_labels for l in ["sec", "security", "audit"]):
-    prompt = f"Act as a Strict Security Auditor. Perform a deep security audit (OWASP Top 10). Find real vulnerabilities with exact file/line references.\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
+    prompt = f"Act as a Strict Security Auditor. Perform a deep security audit (OWASP Top 10). Find real vulnerabilities with exact file/line references.\n{severity_guide}\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
 elif any(l in trigger_labels for l in ["review", "refactor", "code-review"]):
-    prompt = f"Act as a Strict Code Reviewer. Analyze code quality (SOLID/DRY). Point to exact lines that violate principles.\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
+    prompt = f"Act as a Strict Code Reviewer. Analyze code quality (SOLID/DRY). Point to exact lines that violate principles.\n{severity_guide}\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
 elif any(l in trigger_labels for l in ["qa", "test", "testing"]):
-    prompt = f"Act as a QA Engineer. Identify edge cases and missing test coverage. Reference exact functions/lines.\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
+    prompt = f"Act as a QA Engineer. Identify edge cases and missing test coverage. Reference exact functions/lines.\n{severity_guide}\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
 elif any(l in trigger_labels for l in ["perf", "performance", "optimize"]):
-    prompt = f"Act as a Performance Expert. Analyze bottlenecks and O(n) complexity issues with exact line references.\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
+    prompt = f"Act as a Performance Expert. Analyze bottlenecks and O(n) complexity issues with exact line references.\n{severity_guide}\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
 elif any(l in trigger_labels for l in ["pm", "release", "product"]):
-    prompt = f"Act as a Product Manager. Generate user-facing Release Notes with clear impact descriptions.\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
+    prompt = f"Act as a Product Manager. Generate user-facing Release Notes with clear impact descriptions.\n{severity_guide}\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
 elif any(l in trigger_labels for l in ["deps", "dependencies"]):
-    prompt = f"Act as a Security & Dependency Auditor. Analyze all new or changed dependencies: check for known vulnerabilities (CVEs), license compatibility (MIT/Apache/GPL), package size impact, and whether each dep is actively maintained. Reference exact file and line where dep is added.\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
+    prompt = f"Act as a Security & Dependency Auditor. Analyze all new or changed dependencies: check for known vulnerabilities (CVEs), license compatibility (MIT/Apache/GPL), package size impact, and whether each dep is actively maintained. Reference exact file and line where dep is added.\n{severity_guide}\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
 elif any(l in trigger_labels for l in ["arch", "architecture"]):
-    prompt = f"Act as a Software Architect. Review the code changes for architectural issues: violation of separation of concerns, tight coupling, wrong layer dependencies, anti-patterns (God object, spaghetti logic, magic numbers). Reference exact files and lines.\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
+    prompt = f"Act as a Software Architect. Review the code changes for architectural issues: violation of separation of concerns, tight coupling, wrong layer dependencies, anti-patterns (God object, spaghetti logic, magic numbers). Reference exact files and lines.\n{severity_guide}\nContext: {event_context}\nChanges: {diff_text}\n{base_instructions}"
 else:
-    prompt = f"""Analyze the following code changes and create a documentation issue summarizing what was changed and why.
-IMPORTANT: Do NOT invent security issues, bugs, or problems that do not exist in the diff.
-If the changes are trivial (e.g. adding imports, minor refactoring), set severity to LOW and describe only what actually changed.
+    prompt = f"""Act as a Senior Software Engineer reviewing a colleague's changes. Analyze the code diff and provide a thorough assessment.
+
+Focus on:
+1. What was changed and why (based on commit message and diff context).
+2. Whether the changes introduce any risks, bugs, or improvements worth noting.
+3. The overall scope and impact of the changes on the project.
+
+Do NOT invent problems that do not exist in the diff. Base your analysis strictly on what you see.
+{severity_guide}
 Context: {event_context}
 Changes: {diff_text}
 {base_instructions}"""
