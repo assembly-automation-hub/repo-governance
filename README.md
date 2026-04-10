@@ -21,11 +21,12 @@ A repository-automation and delivery blueprint for a logging library, consolidat
 [![Security: CodeQL](https://img.shields.io/badge/Security-CodeQL-2ea44f?style=for-the-badge&logo=github)](#deployment)
 [![Dependabot](https://img.shields.io/badge/Dependencies-Dependabot-025e8c?style=for-the-badge&logo=dependabot)](#configuration)
 [![YAML First](https://img.shields.io/badge/Config-YAML-informational?style=for-the-badge)](#tech-stack--architecture)
+[![Gist](https://img.shields.io/badge/Gist-View_Scripts-24292e?style=for-the-badge&logo=github)](https://gist.github.com/OstinUA)
 
 </div>
 
 > [!IMPORTANT]
-> This repository currently contains project governance, CI/CD, security, and issue-management YAML for a logging-library codebase. The library implementation files themselves are not present in this checkout, so this README documents the operational layer that supports the library lifecycle.
+> This repository currently contains project governance, CI/CD, security, and issue-management YAML for a logging-library codebase. The library implementation files themselves are not present in this checkout, so this README documents the operational layer that supports the library lifecycle. [View the operational scripts in this Gist](https://gist.github.com/OstinUA/524288d1f966b0430085542f4d0b4521).
 
 ## Table of Contents
 
