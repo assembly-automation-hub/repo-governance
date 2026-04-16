@@ -21,7 +21,6 @@ A repository-automation and delivery blueprint for a logging library, consolidat
 [![Security: CodeQL](https://img.shields.io/badge/Security-CodeQL-2ea44f?style=for-the-badge&logo=github)](#deployment)
 [![Dependabot](https://img.shields.io/badge/Dependencies-Dependabot-025e8c?style=for-the-badge&logo=dependabot)](#configuration)
 [![YAML First](https://img.shields.io/badge/Config-YAML-informational?style=for-the-badge)](#tech-stack--architecture)
-[![Gist](https://img.shields.io/badge/Gist-View_Scripts-24292e?style=for-the-badge&logo=github)](https://gist.github.com/OstinUA)
 
 </div>
 
