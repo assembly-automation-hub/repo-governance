@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   analyze_code:
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -25,6 +26,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -33,7 +36,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --no-cache-dir PyGithub==2.5.0 requests==2.32.3
+          pip install --no-cache-dir --disable-pip-version-check PyGithub==2.5.0 requests==2.32.3
 
       - name: Run AI Analysis
         env:

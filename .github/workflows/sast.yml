@@ -8,7 +8,7 @@ permissions: read-all
 
 concurrency:
   group: codeql-${{ github.ref }}-${{ matrix.language }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   codeql:
@@ -30,6 +30,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4.38.2
