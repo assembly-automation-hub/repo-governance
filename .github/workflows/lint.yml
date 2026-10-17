@@ -19,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.head_ref }}
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -34,7 +34,7 @@ jobs:
           fi
           if [ -f package-lock.json ]; then
             echo "package-lock.json found. Running fast install (npm ci)..."
-            npm ci
+            npm ci --no-audit --no-fund
           else
             echo "package-lock.json NOT found. Generating it (npm install)..."
             npm install --no-audit --no-fund
